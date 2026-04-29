@@ -1,6 +1,9 @@
 ---
 name: oasis-project-support
-description: "Support OASIS-based service repositories that model business flows in BPMN and implement Java tasks around them. Use when Codex needs to inspect or extend `.bpmn` flows in an OASIS user project, debug `PropertyEL`, `MethodBinding`, `JavaServiceTask`, or `ScriptTask` behavior, design or fix tests around `ServiceResult`, `path()`, and `messages()`, interpret `UserException`, Error End Event, or Error Boundary Event behavior, or add a new OASIS flow together with its paired BPMN and test strategy. Also use when a natural-language request describes an OASIS business service in BPMN terms such as start event, gateway branching, event-based routing, DB lookup/update, status change, 제조오더, 이벤트, 파라미터, 상태 변경, or 서비스 작성. This skill works alongside `bpmn-skill`: let `bpmn-skill` own schema-safe `.bpmn` file creation and structural edits through `bpmn-tool`, and use this skill when the BPMN must be checked against OASIS runtime semantics, extensions, bindings, Java task contracts, and tests."s Project Support
+description: "Support OASIS-based service repositories that model business flows in BPMN and implement Java tasks around them. Use when Codex needs to inspect or extend `.bpmn` flows in an OASIS user project, debug `PropertyEL`, `MethodBinding`, `JavaServiceTask`, or `ScriptTask` behavior, design or fix tests around `ServiceResult`, `path()`, and `messages()`, interpret `UserException`, Error End Event, or Error Boundary Event behavior, or add a new OASIS flow together with its paired BPMN and test strategy. Also use when a natural-language request describes an OASIS business service in BPMN terms such as start event, gateway branching, event-based routing, DB lookup/update, status change, 제조오더, 이벤트, 파라미터, 상태 변경, or 서비스 작성. This skill works alongside `bpmn-skill`: let `bpmn-skill` own schema-safe `.bpmn` file creation and structural edits through `bpmn-tool`, and use this skill when the BPMN must be checked against OASIS runtime semantics, extensions, bindings, Java task contracts, and tests."
+---
+
+# OASIS Project Support
 
 ## Workflow
 
@@ -180,6 +183,22 @@ description: "Support OASIS-based service repositories that model business flows
   - `messages()` for send-task and topic binding behavior
   - `serviceResultCode()` and `exception()` for user/system error boundaries
 
+## Anti-Skip Heuristic
+
+OASIS 관련 작업이 "단순 패턴 복사" 처럼 보일수록 본 스킬을 더 확실히 호출한다. **"기존 패턴을 흉내냈으니 스킬 없이 충분하다" 는 가장 흔한 오판이다.** 다음 신호 중 하나라도 있으면 작업 시작 전에 본 스킬을 무조건 진입한다 (스킵 금지).
+
+- 새 `.bpmn` 파일을 `services/` 또는 그 하위 디렉토리에 추가
+- 기존 `.bpmn` 에 `serviceTask`, `exclusiveGateway`, `sequenceFlow`, action 분기, end event 중 하나라도 한 줄 이상 추가/수정
+- BPMN `camunda:class="..."` 가 가리키는 Java task class (`*Manager`, `*Service`, `*Handler` 등) 에 신규 메서드/생성자/필드 추가
+- 기존 OASIS 서비스 (search / register / update / delete / approve 등) 를 흉내내거나 통째로 복제
+- `output` / `input` / `tx` / `ds` / `iter` / `multiInstance` 등 PropertyEL alias 또는 `camunda:property` 의 신규 정의·변경
+- OASIS BPMN 과 짝을 이루는 테스트 (`BpmnServiceLoaderForTest`, `OasisServiceExecutor`, `ServiceResult` assertion) 의 신규/수정
+- 자연어 도메인 키워드: 오더, 제품, 자재, 라우팅, 작업지시, 라인, 조업, 등록/조회/수정/삭제 액션, 서비스 추가/만들기, 목 데이터 반환 서비스, BPMN 액션 추가
+
+"복붙처럼 보이는" 작업에도 OASIS 함정은 그대로 살아 있다 — output alias 충돌, file-name vs process-id 매칭, gateway condition expression form, MethodBinding 모호성, ServiceResult assertion 누락, transaction propagation 등. 최소한 다음 세 reference 는 항상 1 차 점검한다: `references/binding-playbook.md`, `references/testing-playbook.md`, `references/pattern-map.md`.
+
+스킬을 호출하지 않은 채 BPMN/Java task/OASIS test 를 한 줄이라도 작성했다면, 그 자체가 회귀 신호다. 즉시 중단하고 본 스킬 워크플로우 §1 부터 다시 시작한다.
+
 ## Response Shape
 
 - For debugging requests:
@@ -246,3 +265,18 @@ description: "Support OASIS-based service repositories that model business flows
 - “루프 태스크의 output 이 리스트인지 단일값인지 헷갈려”
 - “실제 운영 BPMN 에서 비슷한 사례 있어?”
 - “이 흐름을 운영 BPMN 스타일로 다시 짜 줘”
+
+### Pattern-Clone / Minimal-Augment (스킵 위험 높음 — 본 스킬을 반드시 호출)
+
+다음 류의 발화는 “기존 패턴 흉내” 라는 이유로 가장 자주 스킬이 누락되는 케이스다. 짧고 평이해 보여도 OASIS 관점 검증이 필요하므로 워크플로우 §1 부터 정상 진입한다.
+
+- “지금 오더 조회가 있는데 그거 말고 제품 조회 목 데이터 반환하는 거 하나만 더 만들어 줘”
+- “order 서비스 그대로 복사해서 product 서비스로 만들어”
+- “기존 search 액션 패턴 그대로 searchByCode 액션 하나만 추가”
+- “이 `.bpmn` 에 register 액션 하나만 더 달아 줘”
+- “`OrderManager` 에 `createOrder` 메서드만 추가하고 BPMN 에 분기 하나 더 달아 줘”
+- “목 데이터 반환하는 신규 OASIS 조회 서비스 하나만 추가”
+- “신규 도메인 (자재 / 라인 / 작업지시 / 라우팅) BPMN + Java task + 테스트 한 세트 추가”
+- “기존 BPMN 에 ServiceTask 하나만 끼워 넣어 줘”
+- “이 OASIS 서비스에 update 액션만 추가”
+- “`*Manager` 클래스에 메서드 하나 추가하고 그 메서드를 BPMN 에서 호출하도록 묶어 줘”
